@@ -161,10 +161,10 @@ function App() {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+        mediaTypes: ["videos"],
         allowsEditing: true,
         quality: 1,
-        videoMaxDuration: 60, // 60 seconds max
+        videoMaxDuration: 60,
       });
 
       if (!result.canceled && result.assets[0]) {
@@ -261,7 +261,7 @@ function App() {
         return;
       }
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+        mediaTypes: ["videos"],
         allowsEditing: true,
         quality: 1,
         videoMaxDuration: 60,
