@@ -11,11 +11,16 @@ import { Ionicons } from "@expo/vector-icons";
 import { Image as ExpoImage } from "expo-image";
 import { Button, Card } from "react-native-paper";
 import { useDispatch, useSelector } from "react-redux";
-import { setVideoToPlay, selectRandomVideosFromSubscenes } from "../store";
+import {
+  setVideoToPlay,
+  selectRandomVideosFromSubscenes,
+} from "../../store/index";
 import { SafeAreaView } from "react-native-safe-area-context";
 import SubSceneSection from "./SubSceneSection";
 import StitchedPreviewScreen from "./StitchedPreviewScreen";
 import * as WebBrowser from "expo-web-browser";
+import { Alert } from "react-native";
+import { Pressable } from "react-native";
 
 const colors = {
   primaryBg: "#1C2526",
@@ -28,14 +33,7 @@ const colors = {
 
 const screenWidth = Dimensions.get("window").width;
 
-const SceneSection = ({
-  scene,
-  allScenes,
-  uploadVideo,
-  captureVideo,
-  setUploadModalVisible,
-  setCurrentSubSceneId,
-}) => {
+const SceneSection = ({ scene }) => {
   const dispatch = useDispatch();
 
   const selectedMovie = useSelector((state) => state.movie.selectedMovie);
@@ -92,72 +90,74 @@ const SceneSection = ({
             <Text style={styles.title}>{scene.title}</Text>
           </Card.Content>
 
-          <Button
-            mode="text"
-            textColor={colors.accent}
-            contentStyle={styles.buttonContent}
-            style={styles.previewButton}
-            onPress={() => {
-              if (selectedMovie?.type === "movies") {
-                dispatch(
-                  setVideoToPlay({
-                    videoUrl: scene.videoUrl,
-                    startTime: 1,
-                    endTime: null,
-                  })
-                );
-              } else if (selectedMovie?.type === "scripts") {
-                if (scene.pdfFileKey) {
-                  WebBrowser.openBrowserAsync(scene.pdfFileKey);
-                }
-              }
-            }}
-          >
-            {selectedMovie?.type === "movies" &&
-              (scene?.thumbnail || scene?.imageFile) && (
-                <View style={[styles.imageContainer, styles.previewImage]}>
-                  <ExpoImage
-                    source={{
-                      uri:
-                        scene.thumbnail?.includes("main_file") &&
-                        scene.imageFile
-                          ? scene.imageFile
-                          : scene.thumbnail,
-                    }}
-                    style={styles.previewImage}
-                    contentFit="contain"
-                    cachePolicy="memory-disk"
-                  />
-                  <View style={styles.playIconContainer}>
-                    <Ionicons
-                      name="play-circle"
-                      size={40}
-                      color="rgba(255, 255, 255, 0.9)"
-                      style={styles.playIcon}
-                    />
-                  </View>
-                </View>
-              )}
-
-            {selectedMovie?.type === "scripts" && scene?.imageFile && (
-              <View style={[styles.imageContainer, styles.previewImage]}>
+          {(selectedMovie?.type === "movies" ||
+            selectedMovie?.type === "storytelling") &&
+            (scene?.thumbnail || scene?.imageFile) && (
+              <Pressable
+                style={[styles.imageContainer, styles.previewImage]}
+                onPress={() => {
+                  if (
+                    selectedMovie?.type === "movies" ||
+                    selectedMovie?.type === "storytelling"
+                  ) {
+                    dispatch(
+                      setVideoToPlay({
+                        videoUrl: scene.videoUrl,
+                        startTime: 1,
+                        endTime: null,
+                      })
+                    );
+                  } else if (selectedMovie?.type === "scripts") {
+                    if (scene.pdfFileKey) {
+                      WebBrowser.openBrowserAsync(scene.pdfFileKey);
+                    }
+                  }
+                }}
+              >
                 <ExpoImage
-                  source={{ uri: scene.imageFile }}
+                  source={{
+                    uri:
+                      scene.thumbnail?.includes("main_file") && scene.imageFile
+                        ? scene.imageFile
+                        : scene.thumbnail,
+                  }}
                   style={styles.previewImage}
-                  contentFit="contain"
+                  contentFit="cover"
                   cachePolicy="memory-disk"
                 />
-                <View style={styles.pdfIconContainer}>
+                <View style={styles.playIconContainer}>
                   <Ionicons
-                    name="document"
+                    name="play-circle"
                     size={40}
                     color="rgba(255, 255, 255, 0.9)"
-                    style={styles.playIcon}
                   />
                 </View>
-              </View>
+              </Pressable>
             )}
-          </Button>
+
+          {selectedMovie?.type === "scripts" && scene?.imageFile && (
+            <Pressable
+              style={[styles.imageContainer, styles.previewImage]}
+              onPress={() => {
+                if (scene.pdfFileKey)
+                  WebBrowser.openBrowserAsync(scene.pdfFileKey);
+              }}
+            >
+              <ExpoImage
+                source={{ uri: scene.imageFile }}
+                style={styles.previewImage}
+                contentFit="contain"
+                cachePolicy="memory-disk"
+              />
+              <View style={styles.pdfIconContainer}>
+                <Ionicons
+                  name="document"
+                  size={40}
+                  color="rgba(255, 255, 255, 0.9)"
+                />
+              </View>
+            </Pressable>
+          )}
         </Card>
 
         {!scene.subscenes || scene.subscenes.length === 0 ? (
@@ -182,13 +182,9 @@ const SceneSection = ({
               {scene.subscenes?.map((subscene) => (
                 <SubSceneSection
                   key={subscene.id}
-                  sceneId={scene.id}
                   scene={scene}
+                  sceneId={scene.id}
                   subscene={subscene}
-                  uploadVideo={uploadVideo}
-                  captureVideo={captureVideo}
-                  setUploadModalVisible={setUploadModalVisible}
-                  setCurrentSubSceneId={setCurrentSubSceneId}
                 />
               ))}
             </ScrollView>
@@ -205,6 +201,13 @@ const SceneSection = ({
         <Button
           mode="contained"
           onPress={() => {
+            if (getSelectedSubmissionsCount() === 0) {
+              Alert.alert(
+                "No videos selected",
+                "Please select a video to stitch."
+              );
+              return;
+            }
             setShowStitchedModal(true);
           }}
           style={styles.stitchButton}
@@ -273,6 +276,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 17,
     fontWeight: "500",
+    paddingBottom: 8,
   },
   submissionTitle: {
     fontSize: 16,
@@ -344,12 +348,15 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   sceneTitleContainer: {
-    marginVertical: 26,
+    // marginVertical: 26,
     marginHorizontal: 16,
     marginBottom: 16,
     borderRadius: 30,
     overflow: "hidden",
     backgroundColor: "#fff",
+    paddingBottom: 12,
+    paddingLeft: 12,
+    paddingRight: 12,
   },
 
   previewButton: {

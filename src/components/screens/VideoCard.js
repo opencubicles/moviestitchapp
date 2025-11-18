@@ -2,7 +2,7 @@ import React, { useRef, useState } from "react";
 import { TouchableWithoutFeedback, Animated, StyleSheet } from "react-native";
 import { Image as ExpoImage } from "expo-image";
 import { useDispatch, useSelector } from "react-redux";
-import { setVideoToPlay, toggleVideoSelection } from "../store";
+import { setVideoToPlay, toggleVideoSelection } from "../../store/index";
 
 const VideoCard = ({ video, sceneId, subSceneId }) => {
   const dispatch = useDispatch();
@@ -16,7 +16,6 @@ const VideoCard = ({ video, sceneId, subSceneId }) => {
   const isSelected = !!selectedSceneStitch?.[subSceneId]?.[video.id];
   const movieType = selectedMovie?.type;
 
-  /** Single Tap → Play video */
   const handlePress = () => {
     dispatch(
       setVideoToPlay({
@@ -28,7 +27,6 @@ const VideoCard = ({ video, sceneId, subSceneId }) => {
     );
   };
 
-  /** Long Press → Toggle select/deselect */
   const handleLongPress = () => {
     dispatch(toggleVideoSelection({ video, subSceneId, movieType }));
   };

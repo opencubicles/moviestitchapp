@@ -6,8 +6,10 @@ import {
 import {
   movieStitchApi,
   MOVIE_STITCH_API_BASE_URL,
-} from "./api/movieStitchApi";
+} from "../api/movieStitchApi";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as ImagePicker from "expo-image-picker";
+import { Alert } from "react-native";
 
 // Async thunk for fetching movies from API
 export const fetchMovies = createAsyncThunk(
@@ -122,6 +124,177 @@ export const downloadMovie = createAsyncThunk(
     } catch (error) {
       console.error("Error in downloadMovie:", error);
       return rejectWithValue(error.message);
+    }
+  }
+);
+
+export const handleSubmitComment = createAsyncThunk(
+  "movie/handleSubmitComment",
+  async (comment, { getState, dispatch, rejectWithValue }) => {
+    const { currentSubSceneId, tempVideoKey } = getState().movie;
+    if (!comment || !currentSubSceneId || !tempVideoKey) {
+      Alert.alert("Error", "Missing comment, subscene, or video reference.");
+      return rejectWithValue("Invalid submission data");
+    }
+
+    const submissionData = {
+      set_id: currentSubSceneId,
+      comment: comment,
+      video_file_key: tempVideoKey,
+    };
+
+    try {
+      await movieStitchApi.addUserSubmission(submissionData);
+      Alert.alert("Success", "Video uploaded and submission saved!");
+      dispatch(setCommentModalVisible(false));
+      dispatch(setTempVideoKey(null));
+      dispatch(setCurrentSubSceneId(null));
+    } catch (error) {
+      console.error("Failed to save submission:", error);
+      Alert.alert("Error", "Failed to save submission to database.");
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+export const uploadFile = async (fileUri, presignedData) => {
+  if (fileUri) {
+    try {
+      const response = await fetch(fileUri);
+      if (!response.ok) {
+        throw new Error(
+          `Failed to read file: ${response.status} ${response.statusText}`
+        );
+      }
+      const blob = await response.blob();
+      if (blob.size === 0) {
+        throw new Error("File is empty or could not be read");
+      }
+      const uploadResponse = await fetch(presignedData.url, {
+        method: "PUT",
+        body: blob,
+        headers: presignedData.headers || {
+          "Content-Type": "video/mp4",
+        },
+      });
+      if (!uploadResponse.ok) {
+        const errorText = await uploadResponse.text();
+        console.error("Upload failed with status:", uploadResponse.status);
+        console.error("Error response:", errorText);
+        throw new Error(
+          `Failed to upload file: ${uploadResponse.status} ${uploadResponse.statusText}`
+        );
+      }
+      return uploadResponse;
+    } catch (error) {
+      console.error("Upload error:", error);
+      setError(`Failed to upload file: ${error.message}`);
+      throw error;
+    }
+  } else {
+    throw new Error("No file provided for upload");
+  }
+};
+
+export const uploadVideo = createAsyncThunk(
+  "movie/uploadVideo",
+  async (subSceneId, { dispatch, rejectWithValue }) => {
+    try {
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Please allow media library access."
+        );
+        return rejectWithValue("Permission denied");
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["videos"],
+        allowsEditing: true,
+        quality: 1,
+        videoMaxDuration: 60,
+      });
+
+      if (result.canceled || !result.assets[0]) return;
+
+      const videoAsset = result.assets[0];
+      let videoFilename = videoAsset.fileName || `video_${Date.now()}.mp4`;
+      videoFilename = videoFilename.replace(/[^a-zA-Z0-9._-]/g, "_");
+
+      const presignedData = await movieStitchApi.getPresignedUrls(
+        videoFilename
+      );
+      const { urls, keys } = presignedData;
+
+      const response = await fetch(videoAsset.uri);
+      const blob = await response.blob();
+
+      const uploadResponse = await fetch(urls.videoUrl.url, {
+        method: "PUT",
+        body: blob,
+        headers: urls.videoUrl.headers || { "Content-Type": "video/mp4" },
+      });
+
+      if (!uploadResponse.ok) throw new Error("Upload failed");
+
+      dispatch(setTempVideoKey(keys.videoKey));
+      dispatch(setCurrentSubSceneId(subSceneId));
+      dispatch(setCommentModalVisible(true));
+    } catch (err) {
+      console.error(err);
+      Alert.alert("Error", err.message || "Video upload failed.");
+      return rejectWithValue(err.message);
+    }
+  }
+);
+
+export const captureVideo = createAsyncThunk(
+  "movie/captureVideo",
+  async (subSceneId, { dispatch, rejectWithValue }) => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission Required", "Please allow camera access.");
+        return rejectWithValue("Permission denied");
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["videos"],
+        allowsEditing: true,
+        quality: 1,
+        videoMaxDuration: 60,
+      });
+
+      if (result.canceled || !result.assets[0]) return;
+
+      const videoAsset = result.assets[0];
+      let videoFilename = `video_${Date.now()}.mp4`;
+
+      const presignedData = await movieStitchApi.getPresignedUrls(
+        videoFilename
+      );
+      const { urls, keys } = presignedData;
+
+      const response = await fetch(videoAsset.uri);
+      const blob = await response.blob();
+
+      const uploadResponse = await fetch(urls.videoUrl.url, {
+        method: "PUT",
+        body: blob,
+        headers: urls.videoUrl.headers || { "Content-Type": "video/mp4" },
+      });
+
+      if (!uploadResponse.ok) throw new Error("Upload failed");
+
+      dispatch(setTempVideoKey(keys.videoKey));
+      dispatch(setCurrentSubSceneId(subSceneId));
+      dispatch(setCommentModalVisible(true));
+    } catch (err) {
+      console.error(err);
+      Alert.alert("Error", err.message || "Capture failed.");
+      return rejectWithValue(err.message);
     }
   }
 );
@@ -383,6 +556,12 @@ const movieSlice = createSlice({
     generatedMovie: null,
     generatingMovie: false,
     generateMovieError: null,
+
+    uploading: false,
+    uploadModalVisible: false,
+    commentModalVisible: false,
+    currentSubSceneId: null,
+    tempVideoKey: null,
   },
   reducers: {
     setMovies: (state, action) => {
@@ -580,6 +759,29 @@ const movieSlice = createSlice({
       state.generatedMovie = null;
       state.generateMovieError = null;
     },
+
+    setUploading: (state, action) => {
+      state.uploading = action.payload;
+    },
+    setUploadModalVisible: (state, action) => {
+      state.uploadModalVisible = action.payload;
+    },
+    setCommentModalVisible: (state, action) => {
+      state.commentModalVisible = action.payload;
+    },
+    setCurrentSubSceneId: (state, action) => {
+      state.currentSubSceneId = action.payload;
+    },
+    setTempVideoKey: (state, action) => {
+      state.tempVideoKey = action.payload;
+    },
+    resetUploadFlow: (state) => {
+      state.uploading = false;
+      state.uploadModalVisible = false;
+      state.commentModalVisible = false;
+      state.tempVideoKey = null;
+      state.currentSubSceneId = null;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -608,6 +810,30 @@ const movieSlice = createSlice({
       .addCase(generateMovie.rejected, (state, action) => {
         state.generatingMovie = false;
         state.generateMovieError = action.payload;
+      })
+      .addCase(uploadVideo.pending, (state) => {
+        state.uploading = true;
+        state.uploadModalVisible = true;
+      })
+      .addCase(uploadVideo.fulfilled, (state) => {
+        state.uploading = false;
+        state.uploadModalVisible = false;
+      })
+      .addCase(uploadVideo.rejected, (state) => {
+        state.uploading = false;
+        state.uploadModalVisible = false;
+      })
+      .addCase(captureVideo.pending, (state) => {
+        state.uploading = true;
+        state.uploadModalVisible = true;
+      })
+      .addCase(captureVideo.fulfilled, (state) => {
+        state.uploading = false;
+        state.uploadModalVisible = false;
+      })
+      .addCase(captureVideo.rejected, (state) => {
+        state.uploading = false;
+        state.uploadModalVisible = false;
       });
   },
 });
@@ -633,6 +859,12 @@ export const {
   setGenerateMovieError,
   clearGeneratedMovie,
   setSelectedSceneStitch,
+  setUploading,
+  setUploadModalVisible,
+  setCommentModalVisible,
+  setCurrentSubSceneId,
+  setTempVideoKey,
+  resetUploadFlow,
 } = movieSlice.actions;
 
 // Auth slice
@@ -648,6 +880,7 @@ const authSlice = createSlice({
     resetToken: null,
     successMessage: null,
     errorMessage: null,
+    isGuest: false,
   },
   reducers: {
     clearAuthError: (state) => {
@@ -671,6 +904,11 @@ const authSlice = createSlice({
     },
     setSuccessMessage: (state, action) => {
       state.successMessage = action.payload;
+    },
+    setGuestMode: (state) => {
+      state.isGuest = true;
+      state.isAuthenticated = false;
+      state.user = null;
     },
   },
   extraReducers: (builder) => {
@@ -792,6 +1030,7 @@ export const {
   setErrorMessage,
   clearError,
   setSuccessMessage,
+  setGuestMode,
 } = authSlice.actions;
 
 const store = configureStore({

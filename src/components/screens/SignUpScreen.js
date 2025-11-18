@@ -11,7 +11,8 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useDispatch } from "react-redux";
-import { loginUser } from "../store";
+import { signupUser, setGuestMode } from "../../store/index";
+import { useRouter } from "expo-router";
 
 const colors = {
   primaryBg: "#1C2526",
@@ -20,25 +21,45 @@ const colors = {
   accent: "#FFD700",
 };
 
-export default function LoginScreen({ onShowSignUp, onForgotPassword }) {
+export default function SignUpScreen({ onShowLogin }) {
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const dispatch = useDispatch();
+  const router = useRouter();
 
-  const handleLogin = async () => {
-    if (!email || !password) {
+  const handleSignUp = async () => {
+    if (!name || !email || !password || !confirmPassword) {
       Alert.alert("Error", "Please fill in all fields");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      Alert.alert("Error", "Passwords do not match");
       return;
     }
 
     setLoading(true);
     try {
-      await dispatch(loginUser({ email, password })).unwrap();
+      await dispatch(
+        signupUser({
+          name,
+          email,
+          password,
+          password_confirmation: confirmPassword,
+        })
+      ).unwrap();
+      try {
+        router.replace("/auth/login");
+      } catch (navErr) {
+        console.warn("Navigation to /login failed:", navErr);
+      }
     } catch (error) {
       Alert.alert(
-        "Login Failed",
-        error.message || "An error occurred during login"
+        "Sign Up Failed",
+        error || "An error occurred during sign up"
       );
     } finally {
       setLoading(false);
@@ -55,8 +76,19 @@ export default function LoginScreen({ onShowSignUp, onForgotPassword }) {
         style={styles.keyboardAvoidingView}
       >
         <View style={styles.formContainer}>
-          <Text style={styles.title}>Welcome to MovieStitch</Text>
-          <Text style={styles.subtitle}>Sign in to continue</Text>
+          <Text style={styles.title}>Create Your Account</Text>
+          <Text style={styles.subtitle}>Sign up to get started</Text>
+
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Name</Text>
+            <TextInput
+              style={styles.input}
+              value={name}
+              onChangeText={setName}
+              placeholder="Enter your name"
+              placeholderTextColor={colors.text + "80"}
+            />
+          </View>
 
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Email</Text>
@@ -84,26 +116,41 @@ export default function LoginScreen({ onShowSignUp, onForgotPassword }) {
               autoCapitalize="none"
             />
           </View>
-          <TouchableOpacity onPress={onForgotPassword}>
-            <Text
-              style={{ color: "#fff", textAlign: "right", marginBottom: 15 }}
-            >
-              Forgot Password?
-            </Text>
-          </TouchableOpacity>
+
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Confirm Password</Text>
+            <TextInput
+              style={styles.input}
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              placeholder="Re-enter your password"
+              placeholderTextColor={colors.text + "80"}
+              secureTextEntry
+              autoCapitalize="none"
+            />
+          </View>
+
           <TouchableOpacity
             style={[styles.loginButton, loading && styles.loginButtonDisabled]}
-            onPress={handleLogin}
+            onPress={handleSignUp}
             disabled={loading}
           >
             <Text style={styles.loginButtonText}>
-              {loading ? "Signing In..." : "Sign In"}
+              {loading ? "Creating Account..." : "Sign Up"}
             </Text>
           </TouchableOpacity>
-
-          <TouchableOpacity onPress={onShowSignUp} style={styles.signUp}>
-            <Text style={styles.signUpText}>Don't have an account?</Text>
-            <Text style={styles.signUpButton}>Sign Up</Text>
+          <TouchableOpacity onPress={onShowLogin} style={styles.signUp}>
+            <Text style={styles.signUpText}>Already have an account?</Text>
+            <Text style={styles.signUpButton}>Login</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              dispatch(setGuestMode());
+              router.replace("/movies/movies");
+            }}
+            style={styles.guestButton}
+          >
+            <Text style={styles.guestButtonText}>Continue as Guest</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -127,7 +174,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 10,
   },
   title: {
-    fontSize: 22,
+    fontSize: 26,
     fontWeight: "bold",
     color: colors.text,
     textAlign: "center",
@@ -188,5 +235,18 @@ const styles = StyleSheet.create({
     color: colors.text,
     textDecorationLine: "underline",
     fontWeight: "semibold",
+  },
+  guestButton: {
+    marginTop: 20,
+    padding: 15,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.text + "40",
+    alignItems: "center",
+  },
+  guestButtonText: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: "600",
   },
 });

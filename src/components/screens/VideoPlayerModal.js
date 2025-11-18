@@ -10,15 +10,17 @@ import React, { useEffect, useState } from "react";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { Ionicons } from "@expo/vector-icons";
 import { useSelector, useDispatch } from "react-redux";
-import { clearVideoToPlay } from "../store";
+import * as ScreenOrientation from "expo-screen-orientation";
+import { clearVideoToPlay } from "../../store/index";
 
-const { width, height } = Dimensions.get("window");
+const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
 const VideoPlayerModal = () => {
   const dispatch = useDispatch();
   const video = useSelector((state) => state.movie.videoToPlay);
   const visible = !!video;
 
+  const [orientation, setOrientation] = useState("PORTRAIT");
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
 
@@ -43,11 +45,8 @@ const VideoPlayerModal = () => {
   useEffect(() => {
     if (!player) return;
 
-    const subscription = player.addListener(
-      "playingChange",
-      ({ isPlaying }) => {
-        setIsPlaying(isPlaying);
-      }
+    const subscription = player.addListener("playingChange", ({ isPlaying }) =>
+      setIsPlaying(isPlaying)
     );
 
     const progressSubscription = player.addListener(
@@ -72,33 +71,80 @@ const VideoPlayerModal = () => {
     };
   }, [player, video]);
 
+  useEffect(() => {
+    const subscribe = ScreenOrientation.addOrientationChangeListener(
+      (event) => {
+        const o = event.orientationInfo.orientation;
+        if (
+          o === ScreenOrientation.Orientation.LANDSCAPE_LEFT ||
+          o === ScreenOrientation.Orientation.LANDSCAPE_RIGHT
+        ) {
+          setOrientation("LANDSCAPE");
+        } else {
+          setOrientation("PORTRAIT");
+        }
+      }
+    );
+
+    return () => ScreenOrientation.removeOrientationChangeListener(subscribe);
+  }, []);
+
+  // 🔐 Lock orientation only inside modal
+  useEffect(() => {
+    if (visible) {
+      ScreenOrientation.unlockAsync(); // allow user rotation
+    } else {
+      ScreenOrientation.lockAsync(
+        ScreenOrientation.OrientationLock.PORTRAIT_UP
+      );
+    }
+  }, [visible]);
+
+  const closePlayer = async () => {
+    await ScreenOrientation.lockAsync(
+      ScreenOrientation.OrientationLock.PORTRAIT_UP
+    );
+    dispatch(clearVideoToPlay());
+  };
+
+  const isLandscape = orientation === "LANDSCAPE";
+
   return (
-    <Modal visible={visible} transparent animationType="fade">
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      supportedOrientations={["portrait", "landscape"]}
+    >
       <View style={styles.overlay}>
-        <View style={styles.modalContainer}>
-          <View style={styles.videoContainer}>
+        <View
+          style={[
+            styles.modalContainer,
+            isLandscape ? styles.landscapeModal : null,
+          ]}
+        >
+          <View
+            style={[
+              styles.videoContainer,
+              isLandscape ? styles.landscapeVideo : null,
+            ]}
+          >
             {video && (
               <VideoView
                 player={player}
                 contentFit="cover"
-                fullscreenOptions={{
-                  allowsFullscreen: true,
-                }}
                 allowsPictureInPicture
                 nativeControls={true}
                 style={StyleSheet.absoluteFillObject}
               />
             )}
 
-            <TouchableOpacity
-              onPress={() => dispatch(clearVideoToPlay())}
-              style={styles.closeButton}
-            >
+            <TouchableOpacity onPress={closePlayer} style={styles.closeButton}>
               <Ionicons name="close" size={18} color="#fff" />
             </TouchableOpacity>
           </View>
 
-          {video?.isSubscene && (
+          {!isLandscape && video?.isSubscene && (
             <View style={styles.timestampContainer}>
               <Text style={styles.timestampText}>{getTimestampText()}</Text>
             </View>
@@ -115,14 +161,21 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "rgba(0,0,0,0.5)",
+    // height: screenHeight,
+    // width: screenWidth,
   },
   modalContainer: {
-    width: width,
+    width: screenWidth,
     alignItems: "center",
   },
+  landscapeModal: {
+    transform: [{ rotate: "0deg" }],
+    width: screenHeight,
+    height: screenWidth,
+  },
   videoContainer: {
-    width: width,
-    height: height * 0.3,
+    width: screenWidth,
+    height: screenHeight * 0.3,
     backgroundColor: "#000",
     borderTopWidth: 6,
     borderBottomWidth: 6,
@@ -131,14 +184,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     position: "relative",
   },
+  landscapeVideo: {
+    width: screenHeight,
+    height: screenWidth,
+  },
   timestampContainer: {
     backgroundColor: "rgba(0, 0, 0, 0.8)",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    width: width,
+    width: screenWidth,
     alignItems: "center",
-    borderBottomLeftRadius: 8,
-    borderBottomRightRadius: 8,
   },
   timestampText: {
     color: "#fff",
@@ -156,7 +211,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#dc3545",
     justifyContent: "center",
     alignItems: "center",
-    elevation: 4,
   },
 });
 

@@ -21,7 +21,7 @@ import {
   setSelectedSubmissions,
   clearVideoToPlay,
   downloadMovie,
-} from "../store";
+} from "../../store/index";
 import * as WebBrowser from "expo-web-browser";
 
 const { width, height } = Dimensions.get("window");

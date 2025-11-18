@@ -11,8 +11,14 @@ import VideoCard from "./VideoCard";
 import Icon from "react-native-vector-icons/Feather";
 import { Button, Card } from "react-native-paper";
 import { useDispatch, useSelector } from "react-redux";
-import { setVideoToPlay } from "../store";
+import { setVideoToPlay } from "../../store/index";
 import * as WebBrowser from "expo-web-browser";
+import {
+  uploadVideo,
+  captureVideo,
+  setCurrentSubSceneId,
+} from "../../store/index";
+import { Alert } from "react-native";
 
 const colors = {
   primaryBg: "#1C2526",
@@ -35,18 +41,12 @@ const sceneToVideo = (scene) => {
   };
 };
 
-const SubSceneSection = ({
-  subscene,
-  setCurrentSubSceneId,
-  sceneId,
-  scene,
-  uploadVideo,
-  captureVideo,
-}) => {
+const SubSceneSection = ({ subscene, scene, sceneId }) => {
   const dispatch = useDispatch();
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const selectedMovie = useSelector((state) => state.movie.selectedMovie);
   const [pdfVisible, setPdfVisible] = useState(false);
+  const isGuest = useSelector((state) => state.auth.isGuest);
 
   useEffect(() => {
     Animated.loop(
@@ -78,13 +78,21 @@ const SubSceneSection = ({
   };
 
   const handleUpload = () => {
+    if (isGuest) {
+      Alert.alert("Guest Mode", "You need to log in to upload videos.");
+      return;
+    }
     setCurrentSubSceneId(subscene.id);
-    uploadVideo(subscene.id);
+    dispatch(uploadVideo(subscene.id));
   };
 
   const handleRecord = () => {
+    if (isGuest) {
+      Alert.alert("Guest Mode", "You need to log in to upload videos.");
+      return;
+    }
     setCurrentSubSceneId(subscene.id);
-    captureVideo(subscene.id);
+    dispatch(captureVideo(subscene.id));
   };
 
   const mainVideo = sceneToVideo(scene);
@@ -105,7 +113,10 @@ const SubSceneSection = ({
       <View style={styles.titleRow}>
         <TouchableOpacity
           onPress={
-            selectedMovie?.type === "movies" ? playMainVideo : handlePdfOpen
+            selectedMovie?.type === "movies" ||
+            selectedMovie?.type === "storytelling"
+              ? playMainVideo
+              : handlePdfOpen
           }
         >
           <Text style={styles.sceneTitle}>{subscene.name}</Text>
@@ -114,15 +125,24 @@ const SubSceneSection = ({
         <TouchableOpacity
           style={styles.playIconBtn}
           onPress={
-            selectedMovie?.type === "movies" ? playMainVideo : handlePdfOpen
+            selectedMovie?.type === "movies" ||
+            selectedMovie?.type === "storytelling"
+              ? playMainVideo
+              : handlePdfOpen
           }
         >
           <Icon
-            name={selectedMovie?.type === "movies" ? "play" : "file-text"}
+            name={
+              selectedMovie?.type === "movies" ||
+              selectedMovie?.type === "storytelling"
+                ? "play"
+                : "file-text"
+            }
             size={10}
             color="#000"
             style={
-              selectedMovie?.type === "movies"
+              selectedMovie?.type === "movies" ||
+              selectedMovie?.type === "storytelling"
                 ? styles.playIcon
                 : styles.pdfIcon
             }

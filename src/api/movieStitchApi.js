@@ -213,7 +213,7 @@ export const movieStitchApi = {
       });
 
       return {
-        id: `m${script.id || index + 1}`,
+        id: `${script.id}`,
         title: script.title || "Untitled Movie",
         thumbnail:
           ensureUrl(script.image_file_key) ||

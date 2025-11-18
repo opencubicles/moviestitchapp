@@ -13,12 +13,13 @@ import {
 import { Appbar, TouchableRipple } from "react-native-paper";
 import { Image as ExpoImage } from "expo-image";
 import { useDispatch, useSelector } from "react-redux";
-import { setSelectedMovie, fetchMovies } from "../store";
+import { setSelectedMovie, fetchMovies, logoutUser } from "../../store/index";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Platform } from "react-native";
-import { logoutUser } from "../store";
 import { Animated, Easing } from "react-native";
+import { useRouter } from "expo-router";
+import { Pressable } from "react-native";
 
 const colors = {
   primaryBg: "#1C2526",
@@ -30,9 +31,11 @@ const colors = {
 const tabs = ["All", "Movies", "Scripts", "Storytelling"];
 
 const MovieSelectionScreen = () => {
+  const router = useRouter();
   const dispatch = useDispatch();
   const { movies, loading, error } = useSelector((state) => state.movie);
   const user = useSelector((state) => state.auth.user);
+  const isGuest = useSelector((state) => state.auth.isGuest);
   const [activeTab, setActiveTab] = useState("All");
   const [searchVisible, setSearchVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -71,6 +74,8 @@ const MovieSelectionScreen = () => {
   const handleLogout = async () => {
     try {
       await dispatch(logoutUser()).unwrap();
+      setDropdownVisible(false);
+      router.replace("/auth/login");
     } catch (error) {
       console.log("Logout failed", error.message);
     }
@@ -110,7 +115,10 @@ const MovieSelectionScreen = () => {
   const renderMovie = ({ item }) => (
     <TouchableOpacity
       style={styles.movieCard}
-      onPress={() => dispatch(setSelectedMovie(item))}
+      onPress={() => {
+        dispatch(setSelectedMovie(item));
+        router.replace(`/movies/${item.id}`);
+      }}
       activeOpacity={0.8}
     >
       <ExpoImage
@@ -124,7 +132,7 @@ const MovieSelectionScreen = () => {
         <View style={styles.titleRow}>
           {item.type === "scripts" && (
             <ExpoImage
-              source={require("../assets/red-quill-clip.png")}
+              source={require("../../../assets/red-quill-clip.png")}
               style={styles.scriptIcon}
               cachePolicy="memory-disk"
             />
@@ -140,7 +148,10 @@ const MovieSelectionScreen = () => {
   const renderStory = ({ item }) => (
     <TouchableOpacity
       style={styles.storyCard}
-      onPress={() => dispatch(setSelectedMovie(item))}
+      onPress={() => {
+        dispatch(setSelectedMovie(item));
+        router.replace(`/movies/${item.id}`);
+      }}
       activeOpacity={0.8}
     >
       <ExpoImage
@@ -172,7 +183,7 @@ const MovieSelectionScreen = () => {
         <View style={styles.topRowContainer}>
           <View style={styles.topRow}>
             <Image
-              source={require("../assets/logo.png")}
+              source={require("../../../assets/logo.png")}
               style={styles.logo}
               contentFit="contain"
             />
@@ -197,14 +208,26 @@ const MovieSelectionScreen = () => {
             <View style={styles.dropdownWrapper}>
               <View style={styles.dropdownContainer}>
                 <Text style={styles.dropdownUsername}>
-                  Hi, {user?.name || "User"}
+                  Hi, {isGuest ? "Guest" : user?.name || "User"}
                 </Text>
-                <TouchableOpacity
-                  onPress={handleLogout}
-                  style={styles.dropdownLogoutBtn}
-                >
-                  <Text style={styles.dropdownLogoutText}>Logout</Text>
-                </TouchableOpacity>
+
+                {isGuest ? (
+                  <TouchableOpacity
+                    onPress={() => {
+                      router.replace("/auth/login");
+                    }}
+                    style={styles.dropdownLogoutBtn}
+                  >
+                    <Text style={styles.dropdownLogoutText}>Login</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    onPress={handleLogout}
+                    style={styles.dropdownLogoutBtn}
+                  >
+                    <Text style={styles.dropdownLogoutText}>Logout</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
           )}
@@ -279,79 +302,85 @@ const MovieSelectionScreen = () => {
           ))}
         </ScrollView>
       </Appbar.Header>
-
-      <SafeAreaView
-        style={styles.container}
-        edges={["left", "right", "bottom"]}
+      <Pressable
+        style={{ flex: 1 }}
+        onPress={() => {
+          if (dropdownVisible) setDropdownVisible(false);
+        }}
       >
-        <View style={styles.whiteContainer}>
-          {noSearchResults ? (
-            <View>
-              <Text style={styles.noMoviesText}>No search results found</Text>
-            </View>
-          ) : activeTab === "All" ? (
-            <ScrollView
-              contentContainerStyle={styles.scrollContainer}
-              nestedScrollEnabled={true}
-            >
-              {["movies", "scripts", "storytelling"].map((type) => {
-                const sectionMovies = filteredMovies.filter(
-                  (m) => m.type.toLowerCase() === type
-                );
+        <SafeAreaView
+          style={styles.container}
+          edges={["left", "right", "bottom"]}
+        >
+          <View style={styles.whiteContainer}>
+            {noSearchResults ? (
+              <View>
+                <Text style={styles.noMoviesText}>No search results found</Text>
+              </View>
+            ) : activeTab === "All" ? (
+              <ScrollView
+                contentContainerStyle={styles.scrollContainer}
+                nestedScrollEnabled={true}
+              >
+                {["movies", "scripts", "storytelling"].map((type) => {
+                  const sectionMovies = filteredMovies.filter(
+                    (m) => m.type.toLowerCase() === type
+                  );
 
-                if (sectionMovies.length === 0) return null;
+                  if (sectionMovies.length === 0) return null;
 
-                return (
-                  <View key={type} style={styles.sectionContainer}>
-                    <Text style={styles.sectionTitle}>
-                      {type.charAt(0).toUpperCase() + type.slice(1)}
-                    </Text>
-                    {type === "storytelling" ? (
-                      <FlatList
-                        data={sectionMovies}
-                        renderItem={renderStory}
-                        keyExtractor={(item) => item.id.toString()}
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={styles.storyList}
-                      />
-                    ) : (
-                      <FlatList
-                        data={sectionMovies}
-                        renderItem={renderMovie}
-                        keyExtractor={(item) => item.id.toString()}
-                        numColumns={2}
-                        columnWrapperStyle={styles.row}
-                        contentContainerStyle={styles.flatListContent}
-                        scrollEnabled={false}
-                      />
-                    )}
-                  </View>
-                );
-              })}
-            </ScrollView>
-          ) : (
-            <View style={styles.sectionContainer}>
-              {filteredMovies.length > 0 ? (
-                <>
-                  <Text style={styles.sectionTitle}>{activeTab}</Text>
+                  return (
+                    <View key={type} style={styles.sectionContainer}>
+                      <Text style={styles.sectionTitle}>
+                        {type.charAt(0).toUpperCase() + type.slice(1)}
+                      </Text>
+                      {type === "storytelling" ? (
+                        <FlatList
+                          data={sectionMovies}
+                          renderItem={renderStory}
+                          keyExtractor={(item) => item.id.toString()}
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          contentContainerStyle={styles.storyList}
+                        />
+                      ) : (
+                        <FlatList
+                          data={sectionMovies}
+                          renderItem={renderMovie}
+                          keyExtractor={(item) => item.id.toString()}
+                          numColumns={2}
+                          columnWrapperStyle={styles.row}
+                          contentContainerStyle={styles.flatListContent}
+                          scrollEnabled={false}
+                        />
+                      )}
+                    </View>
+                  );
+                })}
+              </ScrollView>
+            ) : (
+              <View style={styles.sectionContainer}>
+                {filteredMovies.length > 0 ? (
+                  <>
+                    <Text style={styles.sectionTitle}>{activeTab}</Text>
 
-                  <FlatList
-                    data={filteredMovies}
-                    renderItem={renderMovie}
-                    keyExtractor={(item) => item.id.toString()}
-                    numColumns={2}
-                    columnWrapperStyle={styles.row}
-                    contentContainerStyle={styles.flatListContent}
-                  />
-                </>
-              ) : (
-                <Text style={styles.noMoviesText}>No {activeTab} found</Text>
-              )}
-            </View>
-          )}
-        </View>
-      </SafeAreaView>
+                    <FlatList
+                      data={filteredMovies}
+                      renderItem={renderMovie}
+                      keyExtractor={(item) => item.id.toString()}
+                      numColumns={2}
+                      columnWrapperStyle={styles.row}
+                      contentContainerStyle={styles.flatListContent}
+                    />
+                  </>
+                ) : (
+                  <Text style={styles.noMoviesText}>No {activeTab} found</Text>
+                )}
+              </View>
+            )}
+          </View>
+        </SafeAreaView>
+      </Pressable>
     </SafeAreaProvider>
   );
 };

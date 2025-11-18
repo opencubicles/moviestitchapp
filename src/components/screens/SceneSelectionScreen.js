@@ -9,7 +9,7 @@ import {
   Image,
 } from "react-native";
 import { useSelector, useDispatch } from "react-redux";
-import { setSelectedMovie } from "../store";
+import { setSelectedMovie } from "../../store/index";
 import SceneSection from "./SceneSection";
 import Icon from "react-native-vector-icons/Ionicons";
 import { Button, useTheme } from "react-native-paper";
@@ -18,6 +18,8 @@ import StitchedPreviewScreen from "./StitchedPreviewScreen";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Platform } from "react-native";
 import { Image as ExpoImage } from "expo-image";
+import { useRouter } from "expo-router";
+import { Alert } from "react-native";
 
 const colors = {
   primaryBg: "#1C2526",
@@ -26,19 +28,10 @@ const colors = {
 
 const screenWidth = Dimensions.get("window").width;
 
-const SceneSelectionScreen = ({
-  uploadVideo,
-  captureVideo,
-  setUploadModalVisible,
-  setCurrentSubSceneId,
-  children,
-}) => {
+const SceneSelectionScreen = ({ children }) => {
   const dispatch = useDispatch();
-  const theme = useTheme();
+  const router = useRouter();
   const movie = useSelector((state) => state.movie.selectedMovie);
-  const selectedSubmissions = useSelector(
-    (state) => state.movie.selectedSubmissions
-  );
   const selectedSceneStitch = useSelector(
     (state) => state.movie.selectedSceneStitch
   );
@@ -88,7 +81,8 @@ const SceneSelectionScreen = ({
   };
 
   const goBackToMovies = () => {
-    dispatch(setSelectedMovie(null));
+    router.replace("/movies");
+    setTimeout(() => dispatch(setSelectedMovie(null)), 100);
   };
 
   return (
@@ -105,15 +99,16 @@ const SceneSelectionScreen = ({
         }}
       >
         <View style={styles.logoTitleContainer}>
-          <Image
-            source={require("../assets/logo.png")}
+          <ExpoImage
+            source={require("../../../assets/logo.png")}
             style={styles.logo}
             contentFit="contain"
+            cachePolicy="memory-disk"
           />
           <View style={styles.titleRow}>
             {movie?.type === "scripts" && (
               <ExpoImage
-                source={require("../assets/red-quill-clip.png")}
+                source={require("../../../assets/red-quill-clip.png")}
                 style={styles.scriptIcon}
                 cachePolicy="memory-disk"
               />
@@ -145,13 +140,7 @@ const SceneSelectionScreen = ({
           decelerationRate="fast"
           renderItem={({ item: scene }) => (
             <View style={styles.sceneSlide}>
-              <SceneSection
-                scene={scene}
-                uploadVideo={uploadVideo}
-                captureVideo={captureVideo}
-                setUploadModalVisible={setUploadModalVisible}
-                setCurrentSubSceneId={setCurrentSubSceneId}
-              />
+              <SceneSection scene={scene} />
 
               {currentIndex > 0 && (
                 <TouchableOpacity
@@ -190,7 +179,16 @@ const SceneSelectionScreen = ({
         <Button
           mode="contained"
           icon="movie"
-          onPress={() => setShowStitchedModal(true)}
+          onPress={() => {
+            if (getSelectedSubmissionsCount() === 0) {
+              Alert.alert(
+                "No videos selected",
+                "Please select a video to stitch."
+              );
+              return;
+            }
+            setShowStitchedModal(true);
+          }}
           textColor="#FFFFFF"
           style={[styles.stitchButton, { backgroundColor: "#fdbd18" }]}
           labelStyle={styles.label}

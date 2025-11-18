@@ -16,7 +16,7 @@ import {
   verifyResetOtp,
   resetPassword,
   resetAuthResetState,
-} from "../store";
+} from "../../store/index";
 
 const colors = {
   primaryBg: "#1C2526",
@@ -27,7 +27,7 @@ const colors = {
   successBg: "#DFF7E1",
 };
 
-export default function ForgotPasswordScreen({ onDone }) {
+export default function ForgotPassword({ onDone }) {
   const dispatch = useDispatch();
   const { loading, step, resetToken, successMessage, errorMessage } =
     useSelector((s) => s.auth);
@@ -64,7 +64,7 @@ export default function ForgotPasswordScreen({ onDone }) {
           onDone();
         }
         setShowRedirectMessage(false);
-      }, 3000);
+      }, 1000);
 
       return () => clearTimeout(timer);
     }

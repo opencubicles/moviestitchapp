@@ -7,14 +7,19 @@ import {
   TouchableOpacity,
   StyleSheet,
 } from "react-native";
+import { handleSubmitComment } from "../../store/index";
+import { useDispatch } from "react-redux";
 
-const CommentModal = ({ visible, onClose, onSubmit }) => {
+const CommentModal = ({ visible, onClose }) => {
   const [comment, setComment] = useState("");
+  const dispatch = useDispatch();
 
   const handleSubmit = () => {
-    if (!comment.trim()) return;
-    onSubmit(comment.trim());
-    setComment("");
+    if (comment.trim() === "") {
+      Alert.alert("Error", "Comment cannot be empty");
+      return;
+    }
+    dispatch(handleSubmitComment(comment));
   };
 
   return (
